@@ -2,87 +2,78 @@
 <?php
 include "../config/conexao.php";
 
-// CADASTRAR OU ATUALIZAR
+// CADASTRAR OU ATUALIZAR TRANSPORTADORA
 if (isset($_POST['salvar'])) {
 
     $id = $_POST['id'] ?? '';
-    $produto = $_POST['produto_id'];
-    $origem = $_POST['origem_id'];
-    $destino = $_POST['destino_id'];
-    $transportador = $_POST['transportador_id'];
-    $quantidade = $_POST['quantidade'];
-    $data = $_POST['data_transporte'];
-    $status = $_POST['status'];
+    $nome = trim($_POST['nome']);
+    $cnpj = trim($_POST['documento']);
+    $telefone = trim($_POST['telefone']);
 
     if ($id == '') {
 
-        $sql = "INSERT INTO transportes
-                (produto_id, origem_id, destino_id,
-                 transportador_id, quantidade, data_transporte, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO transportadores
+                (nome, documento, telefone)
+                VALUES (?, ?, ?)";
 
         $consulta = mysqli_prepare($conexao, $sql);
 
         mysqli_stmt_bind_param(
-            $consulta, "iiiiiss",
-            $produto, $origem, $destino,
-            $transportador, $quantidade, $data, $status
+            $consulta, "sss",
+            $nome, $cnpj, $telefone
         );
 
     } else {
 
-        $sql = "UPDATE transportes SET
-                produto_id = ?,
-                origem_id = ?,
-                destino_id = ?,
-                transportador_id = ?,
-                quantidade = ?,
-                data_transporte = ?,
-                status = ?
+        $sql = "UPDATE transportadores
+                SET nome = ?, documento = ?, telefone = ?
                 WHERE id = ?";
 
         $consulta = mysqli_prepare($conexao, $sql);
 
         mysqli_stmt_bind_param(
-            $consulta, "iiiiissi",
-            $produto, $origem, $destino,
-            $transportador, $quantidade, $data, $status, $id
+            $consulta, "sssi",
+            $nome, $cnpj, $telefone, $id
         );
     }
 
     mysqli_stmt_execute($consulta);
 
-    header("Location: transportes.php?salvo=1");
+    header("Location: transportadores.php?salvo=1");
     exit;
 }
 
-// EXCLUIR
+// EXCLUIR TRANSPORTADORA
 if (isset($_GET['excluir'])) {
 
-    $id = $_GET['excluir'];
+    $id = (int) $_GET['excluir'];
 
     $consulta = mysqli_prepare(
         $conexao,
-        "DELETE FROM transportes WHERE id = ?"
+        "DELETE FROM transportadores WHERE id = ?"
     );
 
     mysqli_stmt_bind_param($consulta, "i", $id);
-    mysqli_stmt_execute($consulta);
 
-    header("Location: transportes.php?excluido=1");
+    if (mysqli_stmt_execute($consulta)) {
+        header("Location: transportadores.php?excluido=1");
+    } else {
+        header("Location: transportadores.php?erro=1");
+    }
+
     exit;
 }
 
-// BUSCAR TRANSPORTE PARA EDITAR
+// BUSCAR TRANSPORTADORA PARA EDITAR
 $editar = [];
 
 if (isset($_GET['editar'])) {
 
-    $id = $_GET['editar'];
+    $id = (int) $_GET['editar'];
 
     $consulta = mysqli_prepare(
         $conexao,
-        "SELECT * FROM transportes WHERE id = ?"
+        "SELECT * FROM transportadores WHERE id = ?"
     );
 
     mysqli_stmt_bind_param($consulta, "i", $id);
@@ -92,25 +83,11 @@ if (isset($_GET['editar'])) {
     $editar = mysqli_fetch_assoc($resultado) ?: [];
 }
 
-// DADOS DOS CAMPOS
-$produtos = mysqli_query($conexao, "SELECT * FROM produtos ORDER BY nome");
-$enderecos = mysqli_query($conexao, "SELECT * FROM enderecos ORDER BY identificacao");
-$transportadores = mysqli_query($conexao, "SELECT * FROM transportadores ORDER BY nome");
-
-// LISTAGEM
-$lista = mysqli_query($conexao, "
-    SELECT t.*,
-           p.nome AS produto_nome,
-           o.identificacao AS origem_nome,
-           d.identificacao AS destino_nome,
-           tr.nome AS transportador_nome
-    FROM transportes t
-    INNER JOIN produtos p ON t.produto_id = p.id
-    INNER JOIN enderecos o ON t.origem_id = o.id
-    INNER JOIN enderecos d ON t.destino_id = d.id
-    INNER JOIN transportadores tr ON t.transportador_id = tr.id
-    ORDER BY t.id DESC
-");
+// LISTAR TRANSPORTADORAS
+$lista = mysqli_query(
+    $conexao,
+    "SELECT * FROM transportadores ORDER BY id DESC"
+);
 ?>
 
 <!DOCTYPE html>
@@ -118,7 +95,8 @@ $lista = mysqli_query($conexao, "
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transportes - Logística Fácil</title>
+
+    <title>Transportadoras - Logística Fácil</title>
 
     <style>
         body {
@@ -135,7 +113,7 @@ $lista = mysqli_query($conexao, "
             background: white;
             padding: 20px;
             border-radius: 8px;
-            max-width: 650px;
+            max-width: 600px;
             margin-bottom: 25px;
         }
 
@@ -144,7 +122,7 @@ $lista = mysqli_query($conexao, "
             margin-top: 12px;
         }
 
-        input, select, textarea {
+        input {
             width: 100%;
             padding: 9px;
             margin-top: 5px;
@@ -161,11 +139,6 @@ $lista = mysqli_query($conexao, "
             background: #237a38;
             color: white;
             border: none;
-        }
-
-        .observacao {
-            background: #e1e1e1;
-            border: 1px solid #aaa;
         }
 
         table {
@@ -202,20 +175,31 @@ $lista = mysqli_query($conexao, "
 
 <a href="../index.php">← Voltar ao início</a>
 
-<h1>Gerenciamento de Transportes</h1>
+<h1>Cadastro de Transportadoras</h1>
 
 <?php if (isset($_GET['salvo'])) { ?>
-    <p class="mensagem">Transporte salvo com sucesso!</p>
+    <p class="mensagem">Transportadora salva com sucesso!</p>
 <?php } ?>
 
 <?php if (isset($_GET['excluido'])) { ?>
-    <p class="mensagem">Transporte excluído!</p>
+    <p class="mensagem">Transportadora excluída!</p>
+<?php } ?>
+
+<?php if (isset($_GET['erro'])) { ?>
+    <p class="erro">
+        Não foi possível excluir a transportadora.
+        Ela pode estar vinculada a um transporte.
+    </p>
 <?php } ?>
 
 <div class="formulario">
 
     <h2>
-        <?php echo !empty($editar) ? "Editar transporte" : "Novo transporte"; ?>
+        <?php
+        echo !empty($editar)
+            ? "Editar transportadora"
+            : "Nova transportadora";
+        ?>
     </h2>
 
     <form method="POST">
@@ -223,165 +207,59 @@ $lista = mysqli_query($conexao, "
         <input type="hidden" name="id"
                value="<?php echo htmlspecialchars($editar['id'] ?? ''); ?>">
 
-        <label>Produto:</label>
-        <select name="produto_id" required>
-            <option value="">Selecione</option>
+        <label>Nome da empresa:</label>
+        <input type="text" name="nome" required
+               placeholder="Ex: Transportadora Rápida LTDA"
+               value="<?php echo htmlspecialchars($editar['nome'] ?? ''); ?>">
 
-            <?php while ($p = mysqli_fetch_assoc($produtos)) { ?>
-                <option value="<?php echo $p['id']; ?>"
-                    <?php
-                    if (($editar['produto_id'] ?? '') == $p['id']) {
-                        echo "selected";
-                    }
-                    ?>>
-                    <?php echo htmlspecialchars($p['nome']); ?>
-                </option>
-            <?php } ?>
-        </select>
+        <label>CNPJ:</label>
+        <input type="text" name="documento" required
+               maxlength="18"
+               placeholder="00.000.000/0000-00"
+               value="<?php echo htmlspecialchars($editar['documento'] ?? ''); ?>">
 
-        <label>Origem:</label>
-        <select name="origem_id" required>
-            <option value="">Selecione</option>
-
-            <?php while ($e = mysqli_fetch_assoc($enderecos)) { ?>
-                <option value="<?php echo $e['id']; ?>"
-                    <?php
-                    if (($editar['origem_id'] ?? '') == $e['id']) {
-                        echo "selected";
-                    }
-                    ?>>
-                    <?php echo htmlspecialchars($e['identificacao']); ?>
-                </option>
-            <?php } ?>
-        </select>
-
-        <label>Destino:</label>
-        <select name="destino_id" required>
-            <option value="">Selecione</option>
-
-            <?php
-            mysqli_data_seek($enderecos, 0);
-            while ($e = mysqli_fetch_assoc($enderecos)) {
-            ?>
-                <option value="<?php echo $e['id']; ?>"
-                    <?php
-                    if (($editar['destino_id'] ?? '') == $e['id']) {
-                        echo "selected";
-                    }
-                    ?>>
-                    <?php echo htmlspecialchars($e['identificacao']); ?>
-                </option>
-            <?php } ?>
-        </select>
-
-        <label>Transportador:</label>
-        <select name="transportador_id" required>
-            <option value="">Selecione</option>
-
-            <?php while ($t = mysqli_fetch_assoc($transportadores)) { ?>
-                <option value="<?php echo $t['id']; ?>"
-                    <?php
-                    if (($editar['transportador_id'] ?? '') == $t['id']) {
-                        echo "selected";
-                    }
-                    ?>>
-                    <?php echo htmlspecialchars($t['nome']); ?>
-                </option>
-            <?php } ?>
-        </select>
-
-        <label>Quantidade:</label>
-        <input type="number" name="quantidade" min="1" required
-               value="<?php echo htmlspecialchars($editar['quantidade'] ?? ''); ?>">
-
-        <label>Data do transporte:</label>
-        <input type="date" name="data_transporte" required
-               value="<?php echo htmlspecialchars($editar['data_transporte'] ?? ''); ?>">
-
-        <label>Status:</label>
-        <select name="status" required>
-            <?php
-            $statusOpcoes = ["Pendente", "Em andamento", "Concluído"];
-
-            foreach ($statusOpcoes as $opcao) {
-                $selecionado = (($editar['status'] ?? '') == $opcao)
-                    ? "selected" : "";
-
-                echo "<option value='$opcao' $selecionado>$opcao</option>";
-            }
-            ?>
-        </select>
-
-        <!-- CAMPO DINÂMICO COM JAVASCRIPT -->
-        <div id="areaObservacao"></div>
-
-        <button type="button" class="observacao"
-                onclick="adicionarObservacao()">
-            + Adicionar observação
-        </button>
-
-        <br>
+        <label>Telefone:</label>
+        <input type="text" name="telefone" required
+               maxlength="20"
+               placeholder="(45) 99999-9999"
+               value="<?php echo htmlspecialchars($editar['telefone'] ?? ''); ?>">
 
         <button type="submit" name="salvar" class="salvar">
-            Salvar transporte
+            Salvar transportadora
         </button>
 
     </form>
 </div>
 
-<h2>Transportes cadastrados</h2>
+<h2>Transportadoras cadastradas</h2>
 
 <table>
     <tr>
         <th>ID</th>
-        <th>Produto</th>
-        <th>Origem</th>
-        <th>Destino</th>
-        <th>Transportador</th>
-        <th>Quantidade</th>
-        <th>Data</th>
-        <th>Status</th>
+        <th>Nome da empresa</th>
+        <th>CNPJ</th>
+        <th>Telefone</th>
         <th>Ações</th>
     </tr>
 
     <?php while ($t = mysqli_fetch_assoc($lista)) { ?>
         <tr>
             <td><?php echo $t['id']; ?></td>
-            <td><?php echo htmlspecialchars($t['produto_nome']); ?></td>
-            <td><?php echo htmlspecialchars($t['origem_nome']); ?></td>
-            <td><?php echo htmlspecialchars($t['destino_nome']); ?></td>
-            <td><?php echo htmlspecialchars($t['transportador_nome']); ?></td>
-            <td><?php echo $t['quantidade']; ?></td>
-            <td><?php echo htmlspecialchars($t['data_transporte']); ?></td>
-            <td><?php echo htmlspecialchars($t['status']); ?></td>
+            <td><?php echo htmlspecialchars($t['nome']); ?></td>
+            <td><?php echo htmlspecialchars($t['documento']); ?></td>
+            <td><?php echo htmlspecialchars($t['telefone']); ?></td>
             <td>
                 <a href="?editar=<?php echo $t['id']; ?>">Editar</a>
                 |
                 <a href="?excluir=<?php echo $t['id']; ?>"
-                   onclick="return confirm('Deseja excluir este transporte?')">
+                   onclick="return confirm('Deseja excluir esta transportadora?')">
                     Excluir
                 </a>
             </td>
         </tr>
     <?php } ?>
+
 </table>
-
-<script>
-function adicionarObservacao() {
-
-    let area = document.getElementById("areaObservacao");
-
-    if (area.innerHTML !== "") {
-        return;
-    }
-
-    area.innerHTML = `
-        <label>Observação:</label>
-        <textarea name="observacao" rows="3"
-                  placeholder="Digite uma observação"></textarea>
-    `;
-}
-</script>
 
 </body>
 </html>
